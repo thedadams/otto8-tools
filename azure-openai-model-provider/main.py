@@ -18,48 +18,46 @@ from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from helpers import list_openai
 
 debug = os.environ.get("GPTSCRIPT_DEBUG", "false") == "true"
-uri = "http://127.0.0.1:" + os.environ.get("PORT", "8000")
 
+uri = "http://127.0.0.1:" + os.environ.get("PORT", "8000")
 api_version = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_API_VERSION", "2024-10-21")
 subscription_id = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_SUBSCRIPTION_ID")
 if subscription_id is None:
     print(f"Azure subscription ID was not configured")
     sys.exit(1)
 
-resource_id = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_RESOURCE_ID")
-if resource_id is None:
-    print(f"Azure Resource ID was not configured")
+resource_group = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_RESOURCE_GROUP")
+if resource_group is None:
+    print(f"Azure Resource Group was not configured")
     sys.exit(1)
 
 endpoint = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_ENDPOINT")
 if endpoint is None:
     print(f"Azure model endpoint was not configured")
     sys.exit(1)
-
-api_key = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_API_KEY")
-if api_key is None:
-    try:
-        token_provider = get_bearer_token_provider(
-            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-        )
-
-        azure_client = AzureOpenAI(
-            api_version=api_version,
-            azure_endpoint=endpoint,
-            azure_ad_token_provider=token_provider,
-        )
-    except CredentialUnavailableError:
-        print(f"Could not get Azure credentials")
-        sys.exit(1)
-    except Exception as e:
-        print(e)
-        sys.exit(1)
 else:
-    azure_client = AzureOpenAI(azure_endpoint=endpoint, api_key=api_key, api_version=api_version)
+    endpoint = endpoint.rstrip("/")
 
-os.environ["AZURE_CLIENT_ID"] = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_CLIENT_ID", "")
-os.environ["AZURE_TENANT_ID"] = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_TENANT_ID", "")
-os.environ["AZURE_CLIENT_SECRET"] = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_CLIENT_SECRET", "")
+os.environ["AZURE_CLIENT_ID"] = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_CLIENT_ID")
+os.environ["AZURE_TENANT_ID"] = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_TENANT_ID")
+os.environ["AZURE_CLIENT_SECRET"] = os.environ.get("OTTO8_AZURE_OPENAI_MODEL_PROVIDER_CLIENT_SECRET")
+
+try:
+    token_provider = get_bearer_token_provider(
+        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+    )
+
+    azure_client = AzureOpenAI(
+        api_version=api_version,
+        azure_endpoint=endpoint,
+        azure_ad_token_provider=token_provider,
+    )
+except CredentialUnavailableError:
+    print(f"Could not get Azure credentials")
+    sys.exit(1)
+except Exception as e:
+    print(e)
+    sys.exit(1)
 
 cognitive_services_client = CognitiveServicesManagementClient(credential=DefaultAzureCredential(),
                                                               subscription_id=subscription_id)
@@ -100,7 +98,8 @@ async def get_root():
 async def list_models() -> JSONResponse:
     try:
         return JSONResponse(content={"object": "list", "data": [transform_model(d) for d in
-                                                                list_openai(cognitive_services_client, resource_id)]})
+                                                                list_openai(cognitive_services_client,
+                                                                            resource_group)]})
     except Exception as e:
         print(e)
         return JSONResponse(content={"object": "list", "data": []})
